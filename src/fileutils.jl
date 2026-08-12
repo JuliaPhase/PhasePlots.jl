@@ -27,7 +27,7 @@ function save_figs_as_gif(figs, name, fps=2)
         error("No Makie found")
     end
     GLMakie.activate!()
-    figanim = Figure(; size=figs[1].scene.camera.resolution[])
+    figanim = Figure(; size=figs[1].figure.scene.camera.resolution[])
     record(figanim, name, figs; framerate=fps) do f
         figanim = f
         display(figanim)
