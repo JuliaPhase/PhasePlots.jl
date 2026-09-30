@@ -17,5 +17,5 @@ keywords:
   - "wavefront"
   - "Julia"
 license: MIT
-repository-code: "https://github.com/olejorik/PhasePlots.jl"
+repository-code: "https://github.com/JuliaPhase/PhasePlots.jl"
 version: "0.1.0"
