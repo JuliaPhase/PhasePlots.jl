@@ -1,6 +1,6 @@
 name = "PhasePlots"
 uuid = "a0b7e00f-cd9f-425a-8c23-86a36337abea"
-version = "1.0.0-DEV"
+version = "0.1.0"
 authors = ["Oleg Soloviev <oleg.soloviev@gmail.com> and contributors"]
 
 [deps]

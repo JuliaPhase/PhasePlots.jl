@@ -1,0 +1,28 @@
+{
+  "title": "PhasePlots.jl",
+  "upload_type": "software",
+  "description": "<p>Julia plotting utilities (Makie-based) for phase images and related data: phase maps, tables of heatmaps, ellipse overlays and helpers to save figures.</p>",
+  "creators": [
+    {
+      "name": "Soloviev, Oleg",
+      "affiliation": "Flexible Optical B.V. (OKO Technologies)",
+      "orcid": "0000-0003-3761-9192"
+    }
+  ],
+  "license": "MIT",
+  "access_right": "open",
+  "version": "0.1.0",
+  "keywords": [
+    "plotting",
+    "phase image",
+    "Makie",
+    "visualization",
+    "wavefront",
+    "Julia"
+  ],
+  "grants": [
+    {
+      "id": "10.13039/501100000780::101111948"
+    }
+  ]
+}
