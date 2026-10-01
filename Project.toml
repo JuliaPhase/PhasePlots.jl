@@ -13,7 +13,7 @@ PhaseUtils = "0a972ece-1c72-4cf4-81fb-1c0dc9b4cac1"
 [compat]
 GLMakie = "0.13.10"
 JLD2 = "0.6.4"
-julia = "1"
+julia = "1.11"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
