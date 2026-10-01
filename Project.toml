@@ -6,9 +6,14 @@ authors = ["Oleg Soloviev <oleg.soloviev@gmail.com> and contributors"]
 [deps]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 FFTViews = "4f61f5a4-77b1-5117-aa51-3ab5ef4ef0cd"
-GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 PhaseUtils = "0a972ece-1c72-4cf4-81fb-1c0dc9b4cac1"
+
+[weakdeps]
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+
+[extensions]
+PhasePlotsGLMakieExt = "GLMakie"
 
 [compat]
 GLMakie = "0.13.10"
@@ -16,10 +21,11 @@ JLD2 = "0.6.4"
 julia = "1.11"
 
 [extras]
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test"]
+test = ["Test", "GLMakie"]
 
 [sources]
 PhaseUtils = {url = "https://github.com/JuliaPhase/PhaseUtils.jl", rev = "main"}

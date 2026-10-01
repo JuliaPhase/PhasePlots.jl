@@ -1,35 +1,130 @@
+"""
+    phasemap
+
+The cyclic colormap used for phase maps (`:cyclic_mygbm_30_95_c78_n256` from ColorSchemes):
+its colours at both ends coincide, so wrapping of the phase at ``±π`` produces no visible
+edges. Use it with any Makie plot, e.g. `heatmap(A; colormap=phasemap, colorrange=(-π, π))`.
+"""
 phasemap = :cyclic_mygbm_30_95_c78_n256
 
-# function showarray(arr, colormap=:viridis)
-#     return heatmap(rotr90(arr); colormap=colormap, axis=(aspect=DataAspect(),))
-# end
+"""
+    orient(arr; frame=:image, rot=1)
 
-function showarray!(arr; colormap=:viridis, rot=1, args...)
-    return heatmap!(rotr90(arr, rot); colormap=colormap, args...)
+Reorient a 2D array so that `heatmap` shows it with `x` to the right and `y` up.
+
+Two array conventions are supported, selected by `frame`:
+
+- `:image` (default) — the array comes from an image file or is otherwise indexed
+  `A[row, col]` with row 1 at the **top** (`y = -row`). The array is rotated by `rot`
+  times 90° clockwise (`rotr90(arr, rot)`).
+- `:domain` — the array is sampled on a grid with ascending coordinates,
+  `A[j, i] = f(x[i], y[j])` (as for `SampledDomains.CartesianDomain2D`), so row 1 is the
+  **smallest** `y`. The array is transposed (`rot` is ignored).
+
+See the *About* page of `PhaseBases` and the `SampledDomains` documentation for details.
+"""
+function orient(arr; frame::Symbol=:image, rot=1)
+    if frame === :image
+        return rotr90(arr, rot)
+    elseif frame === :domain
+        return permutedims(arr)
+    else
+        throw(ArgumentError("`frame` must be :image or :domain, got :$frame"))
+    end
 end
 
-function showarray!(ax, arr; colormap=:viridis, rot=1, args...)
-    return heatmap!(ax, rotr90(arr, rot); colormap=colormap, args...)
+# xrange, yrange of a domain-like object (e.g. `SampledDomains.CartesianDomain2D`)
+function _domain_ranges(dom, arr)
+    xr, yr = dom.xrange, dom.yrange
+    size(arr) == (length(yr), length(xr)) || throw(
+        DimensionMismatch(
+            "array of size $(size(arr)) does not match the domain, expected " *
+            "(length(yrange), length(xrange)) = ($(length(yr)), $(length(xr)))",
+        ),
+    )
+    return xr, yr
 end
 
-function showarray(arr; colormap=:viridis, rot=1, args...)
+# axis options for a plot over a domain: x/y labels, user options win
+_domain_axis(args) = merge((xlabel="x", ylabel="y"), get(args, :axis, (;)))
+_without_axis(args) = (; (k => v for (k, v) in pairs(args) if k !== :axis)...)
+
+"""
+    showarray(arr; colormap=:viridis, frame=:image, rot=1, kwargs...)
+    showarray(dom, arr; colormap=:viridis, kwargs...)
+    showarray(x, y, arr; colormap=:viridis, frame=:image, rot=1, kwargs...)
+
+Show a 2D array as a heatmap with `x` to the right and `y` up, and equal aspect ratio.
+
+- `showarray(arr)` treats `arr` as an image (row 1 at the top), see [`orient`](@ref).
+  Use `frame=:domain` for an array sampled on a grid with ascending `y`
+  (`A[j, i] = f(x[i], y[j])`).
+- `showarray(dom, arr)` takes the coordinates from a domain such as
+  `SampledDomains.CartesianDomain2D` (any object with `xrange` and `yrange` fields), so the axes
+  show the physical coordinates and are labelled `x` and `y`. Override with
+  `axis=(xlabel=..., ylabel=...)`. The array must have size
+  `(length(dom.yrange), length(dom.xrange))`.
+- `showarray(x, y, arr)` uses explicit coordinate vectors.
+
+Returns `(fig, ax, hm)`. `showarray!` draws into an existing axis instead.
+
+# Example
+```julia
+dom = CartesianDomain2D(-1:0.05:1, -0.5:0.05:0.5)
+A = [x + 2y for y in dom.yrange, x in dom.xrange]   # increases to the right and upward
+fig, ax, hm = showarray(dom, A)
+```
+"""
+function showarray(arr; colormap=:viridis, frame=:image, rot=1, args...)
     return heatmap(
-        rotr90(arr, rot);
+        orient(arr; frame, rot);
         colormap=colormap,
         args...,
         axis=merge(get(args, :axis, (;)), (aspect=DataAspect(),)),
     )
 end
 
-function showarray(x, y, arr; colormap=:viridis, rot=1, args...)
+function showarray(x, y, arr; colormap=:viridis, frame=:image, rot=1, args...)
     return heatmap(
         x,
         y,
-        rotr90(arr, rot);
+        orient(arr; frame, rot);
         colormap=colormap,
         args...,
         axis=merge(get(args, :axis, (;)), (aspect=DataAspect(),)),
     )
+end
+
+function showarray(dom, arr; colormap=:viridis, args...)
+    xr, yr = _domain_ranges(dom, arr)
+    return showarray(
+        xr,
+        yr,
+        arr;
+        colormap=colormap,
+        frame=:domain,
+        _without_axis(args)...,
+        axis=_domain_axis(args),
+    )
+end
+
+function showarray!(arr; colormap=:viridis, frame=:image, rot=1, args...)
+    return heatmap!(orient(arr; frame, rot); colormap=colormap, args...)
+end
+
+function showarray!(ax, arr; colormap=:viridis, frame=:image, rot=1, args...)
+    return heatmap!(ax, orient(arr; frame, rot); colormap=colormap, args...)
+end
+
+"""
+    showarray!(ax, dom, arr; colormap=:viridis, kwargs...)
+
+Draw `arr` sampled on `dom` into the existing axis `ax`, using the domain coordinates.
+See [`showarray`](@ref).
+"""
+function showarray!(ax, dom, arr; colormap=:viridis, args...)
+    xr, yr = _domain_ranges(dom, arr)
+    return heatmap!(ax, xr, yr, orient(arr; frame=:domain); colormap=colormap, args...)
 end
 
 """
@@ -39,7 +134,8 @@ Display a phase array as a heatmap with a colorbar.
 
 # Arguments
 - `inarr`: Input array representing the phase.
-- `rot`: Number of 90° counterclockwise rotations to apply to the array (default: 1).
+- `rot`: Number of 90° clockwise rotations to apply to the array (default: 1), see [`orient`](@ref).
+- `frame`: `:image` (default) or `:domain` (array sampled on a grid with ascending `y`), see [`orient`](@ref).
 - `fig`: Optional `Figure` object to plot on (default: new `Figure`).
 - `picsize`: Maximum size of the plot (default: 512).
 - `cm`: Colormap to use (default: `phasemap`).
@@ -55,7 +151,7 @@ fig, ax, cb = showphase(arr)
 fig
 ```
 """
-function showphase(inarr; rot=1, fig=Figure(), picsize=512, cm=phasemap)
+function showphase(inarr; rot=1, frame=:image, fig=Figure(), picsize=512, cm=phasemap)
     # if max(size(rotr90(inarr))...) > picsize
     #     arr = imresize(inarr, picsize)
     # else
@@ -63,14 +159,21 @@ function showphase(inarr; rot=1, fig=Figure(), picsize=512, cm=phasemap)
     # end
 
     ax = CairoMakie.Axis(fig[1, 1]; aspect=1)
-    hm = heatmap!(ax, phwrap.(rotr90(arr, rot)); colormap=cm, colorrange=(-π, π))
+    hm = heatmap!(ax, phwrap.(orient(arr; frame, rot)); colormap=cm, colorrange=(-π, π))
     cb = Colorbar(fig[1, 2], hm; width=10, tellheight=true)
     return fig, ax, cb
 end
 
-function showphase!(ax, inarr; rot=1, picsize=512, cm=phasemap)
+"""
+    showphase!(ax, inarr; rot=1, frame=:image, cm=phasemap)
+
+Draw the phase array `inarr` into the existing axis `ax`: the phase is wrapped to
+``(-π, π]`` and shown with the cyclic colormap `cm` over the colour range `(-π, π)`.
+Returns the heatmap, e.g. to make a `Colorbar`. See [`showphase`](@ref) and [`orient`](@ref).
+"""
+function showphase!(ax, inarr; rot=1, frame=:image, picsize=512, cm=phasemap)
     arr = Array(inarr)
-    hm = heatmap!(ax, phwrap.(rotr90(arr, rot)); colormap=cm, colorrange=(-π, π))
+    hm = heatmap!(ax, phwrap.(orient(arr; frame, rot)); colormap=cm, colorrange=(-π, π))
     return hm
 end
 
@@ -85,6 +188,7 @@ Display a phase array as a heatmap with tight axis limits.
 - `picsize`: Maximum size of the plot (default: 512).
 - `cm`: Colormap to use (default: `phasemap`).
 - `hidedec`: Whether to hide axis decorations (default: true).
+- `frame`: `:image` (default) or `:domain`, see [`orient`](@ref).
 - `kwarg`: Additional keyword arguments for the heatmap.
 
 # Returns
@@ -99,7 +203,7 @@ fig
 ```
 """
 function showphasetight(
-    inarr, fig=Figure(); picsize=512, cm=phasemap, hidedec=true, kwarg...
+    inarr, fig=Figure(); frame=:image, picsize=512, cm=phasemap, hidedec=true, kwarg...
 )
     inarr = bboxview(Array(inarr))
     # if max(size(inarr)...) > picsize
@@ -114,15 +218,16 @@ function showphasetight(
         pos = fig[1, 1]
     end
     ax = CairoMakie.Axis(pos; aspect=AxisAspect(1))
-    hm = heatmap!(ax, phwrap.(rotr90(arr)); colormap=cm, colorrange=(-π, π), kwarg...)
+    hm = heatmap!(ax, phwrap.(orient(arr; frame)); colormap=cm, colorrange=(-π, π), kwarg...)
     if hidedec
         hidedecorations!(ax; grid=false)
     end
     return fig, ax, hm
 end
 
+# TODO: `phaseplot` does not work as intended yet (not documented until fixed), see TODO.md
 @recipe(PhasePlot, arr) do scene
-    Attributes(; colormap=phasemap, colorrange=(-π, π), crop=true)
+    Attributes(; colormap=phasemap, colorrange=(-π, π), crop=true, frame=:image)
     # Theme(
     #         Axis = (
     #             aspect = 1,
@@ -152,7 +257,7 @@ function Makie.plot!(p::PhasePlot{<:Tuple{<:AbstractArray}})
     # axis = (aspect =  1,)
     # )
     with_theme(phasetheme) do
-        heatmap!(p, rotr90(arr))
+        heatmap!(p, orient(arr; frame=p[:frame][]))
     end
 
     # tightlimits!(p.plots.axis)
@@ -160,6 +265,13 @@ function Makie.plot!(p::PhasePlot{<:Tuple{<:AbstractArray}})
     return p
 end
 
+"""
+    phasetheme
+
+A Makie `Theme` for phase maps: [`phasemap`](@ref) as the default colormap, equal aspect ratio,
+and axes without spines, ticks, tick labels and margins. Use it as
+`with_theme(phasetheme) do ... end`.
+"""
 phasetheme = Theme(;
     Axis=(
         aspect=1,
@@ -193,7 +305,8 @@ Show a vector of 2D arrays as a matrix of heatmaps with a common colorbar below.
 - `colormap`: Colormap to use (default: `:viridis`).
 - `limits`: Common color range for all heatmaps (default: auto-calculated).
 - `hidedecorations`: Whether to hide axis decorations (default: false).
-- `rot`: Number of 90° counterclockwise rotations to apply to each array (default: 1).
+- `rot`: Number of 90° clockwise rotations to apply to each array (default: 1).
+- `frame`: `:image` (default) or `:domain`, see [`orient`](@ref).
 - `aspect`: Aspect ratio for the axes (default: `DataAspect()`).
 - `kwargs`: Additional keyword arguments for the heatmaps.
 
@@ -218,6 +331,7 @@ function plot_heatmaps_table(
     colormap=:viridis,
     limits=(0, 0),
     hidedecorations=false,
+    frame=:image,
     rot=1,
     titles="",
     title="",
@@ -260,7 +374,7 @@ function plot_heatmaps_table(
                 ax,
                 x,
                 y,
-                rotr90(arr, rot);
+                orient(arr; frame, rot);
                 colorrange=(min_val, max_val),
                 colormap=colormap,
                 kwargs...,
@@ -269,7 +383,7 @@ function plot_heatmaps_table(
 
             heatmap!(
                 ax,
-                rotr90(arr, rot);
+                orient(arr; frame, rot);
                 colorrange=(min_val, max_val),
                 colormap=colormap,
                 kwargs...,
@@ -289,6 +403,14 @@ function plot_heatmaps_table(
     return fig
 end
 
+"""
+    plot_heatmaps_table!(parent_layout, heatmaps_array; show_colorbar=false, kwargs...)
+
+Like [`plot_heatmaps_table`](@ref), but draws the table into `parent_layout` (a `GridLayout`
+or a position in an existing figure, e.g. `GridLayout(fig[1, 1])`) instead of creating a new
+figure. The common colorbar is drawn only with `show_colorbar=true`. Accepts the same keywords
+as `plot_heatmaps_table`, except `x` and `y`.
+"""
 function plot_heatmaps_table!(
     parent_layout,
     heatmaps_array;
@@ -298,6 +420,7 @@ function plot_heatmaps_table!(
     colormap=:viridis,
     limits=(0, 0),
     hidedecorations=false,
+    frame=:image,
     rot=1,
     titles="",
     title="",
@@ -337,7 +460,7 @@ function plot_heatmaps_table!(
             hidedecorations!(ax)
         end
         heatmap!(
-            ax, rotr90(hm, rot); colorrange=(min_val, max_val), colormap=colormap, kwargs...
+            ax, orient(hm; frame, rot); colorrange=(min_val, max_val), colormap=colormap, kwargs...
         )
     end
 
@@ -354,8 +477,20 @@ function plot_heatmaps_table!(
     end
 end
 
-# # to mark some details on the plot
-circle_with_hole(r=0.9) = BezierPath([
+"""
+    circle_with_hole(r=0.9)
+
+A ring-shaped marker (`BezierPath`): a unit circle with a hole of radius `r`. Useful to mark
+points on top of an image without hiding the image beneath them.
+
+# Example
+```julia
+fig, ax, hm = showarray(rand(50, 50))
+scatter!(ax, [25], [25]; marker=circle_with_hole(), markersize=30, color=:red)
+fig
+```
+"""
+circle_with_hole(r=0.9) =BezierPath([
     MoveTo(Point(1, 0)),
     EllipticalArc(Point(0, 0), 1, 1, 0, 0, 2pi),
     EllipticalArc(Point(0, 0), r, r, 0, 0, -2pi),

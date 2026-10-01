@@ -1,5 +1,3 @@
-using GLMakie
-using GLMakie: Gray, N0f8
 
 
 function conic_to_axes(coeffs, normalise=true)
@@ -129,289 +127,71 @@ function mask_ellipse(img, coeffs)
     return mask
 end
 
-"""
-    draw_ellipse(img)
-
-Display an image and let you draw an ellipse there.
-    Controls :
-    a+ click to add a point
-    d+ click to delete a point
-    mouse wheel or left mouse press and draw to zoom
-    right mouse to pan
-    Ctrl+click to reset zoom
-    Esc or q to quit
-"""
-function draw_ellipse(img)
-    ready = false
-    displayhelp = Observable(true)
-    state = Observable(:pass)
-
-    helpmessage = """
-    Controls :
-    a to switch to "add a point" mode
-    d to switch to "delete a point" mode
-    p to switch to passive mode
-    e to toggle ellipse/polygon mode
-    h to show/hide this message
-    mouse wheel or left mouse press and draw to zoom
-    right mouse to pan
-    Ctrl+click to reset zoom
-    Esc or q to quit
-    """
-
-    isbig = size(img)[1] > 128 && size(img)[2] > 128
-
-    fig, ax, implot = image(rotr90(img); axis=(aspect=DataAspect(),), interpolate=isbig)
-
-    mode = :ellipse
-    positions = Observable(Point2f[])
-    current_el = lift(fit_ellipse, positions)
-    el_points = map(_pos_to_elpoints, positions)
-    overlay = lift(current_el) do current_el
-        mask = mask_ellipse(rotr90(img), current_el)
-        ap2mask(1 .- mask)
-    end
-
-    image!(overlay; colormap=(:Blues, 0.4))
-
-    p = scatter!(ax, positions)
-    c = lines!(ax, el_points)
-
-    text!(
-        0.1,
-        0.9;
-        text=helpmessage,
-        space=:relative,
-        color=:white,
-        font=:bold,
-        align=(:left, :top),
-        visible=displayhelp,
-        glowwidth=1,
-        fontsize=24,
-    )
-
-    on(events(fig).mousebutton; priority=2) do event
-        if event.button == Mouse.left && event.action == Mouse.press
-            if state[] == :delete
-                # Delete marker
-                plt, i = pick(fig)
-                if plt == p
-                    deleteat!(positions[], i)
-                    notify(positions)
-                    return Consume(true)
-                end
-            elseif state[] == :add
-                # Add marker
-                push!(positions[], mouseposition(ax))
-                notify(positions)
-                return Consume(true)
-            end
-        end
-        return Consume(false)
-    end
-
-    screen = display(fig)
-
-    on(events(fig).keyboardbutton) do event
-        if event.action == Keyboard.press || event.action == Keyboard.repeat
-            if event.key == Keyboard.q || event.key == Keyboard.escape
-                println("q/esc is pressed, the data are saved")
-                println("$(fit_ellipse(to_value(positions)))")
-                ready = true
-                close(screen)
-                # return el .= current_el[]
-            elseif event.key == Keyboard.h
-                displayhelp[] = !displayhelp[]
-            elseif event.key == Keyboard.a
-                state[] = :add
-            elseif event.key == Keyboard.d
-                state[] = :delete
-            elseif event.key == Keyboard.p
-                state[] = :pass
-            end
-
-        end
-    end
-    wait(screen)
-    return to_value(current_el), rotr90(mask_ellipse(rotr90(img), to_value(current_el)), 3)
-end  # function draw_ellipse
+# Interactive tools, implemented in the GLMakie extension (ext/PhasePlotsGLMakieExt.jl)
 
 """
-    draw_or_load_ellipse(elfile, img, apfile="", saveap=true)
+    draw_ellipse(img) -> (coeffs, mask)
 
-    Loads an ellipse from jld2 file named `elfile`, and if not found, it will display the image `img` and let you draw an ellipse there.
-    If saveap is true, it will save the aperture to `apfile` ("ap.png" by default) in the same directory as `elfile`.
+Display the image `img` and let you draw an ellipse (e.g. the pupil of an interferogram) by
+clicking points on its boundary. An ellipse is fitted to the points and shown on top of the
+image as you go. Returns the conic coefficients `[A, B, C, D, E, F]` of the ellipse
+`A x² + B xy + C y² + D x + E y + F = 0` and the boolean mask of its interior, of the same size
+as `img`.
 
+Requires an interactive backend: run `using GLMakie` first.
 
-Display an image and let you draw an ellipse there.
-    Controls :
-    a+ click to add a point
-    d+ click to delete a point
-    mouse wheel or left mouse press and draw to zoom
-    right mouse to pan
-    Ctrl+click to reset zoom
-    Esc or q to quit
+Controls:
+- `a` — "add a point" mode, then click to add points
+- `d` — "delete a point" mode, then click a point to delete it
+- `p` — passive mode
+- `h` — show/hide the help message
+- mouse wheel or left mouse press and drag to zoom, right mouse to pan, Ctrl+click to reset zoom
+- `Esc` or `q` — quit and return the result
+
+See also [`draw_or_load_ellipse`](@ref).
 """
-function draw_or_load_ellipse(elfile, img, apfile=""; saveap=false)
-    if apfile == ""
-        apfile = joinpath(dirname(elfile), "ap.tif")
-    end
+function draw_ellipse end
 
-    return try
-        el = load(elfile, "el")
-        @info "Aperture loaded"
-        el
-    catch
-        @info "Aperture not found, please draw it"
-        GLMakie.activate!()
-        el, ap = draw_ellipse(img)
-        saveap && (save(apfile, Gray{N0f8}.(ap));
-        @info "$apfile is saved")
-        jldsave(elfile; el)
-        CairoMakie.activate!(; type="png")
-        el
+"""
+    draw_or_load_ellipse(elfile, img, apfile=""; saveap=false) -> coeffs
+
+Load the ellipse coefficients from the JLD2 file `elfile` (key `"el"`). If the file cannot be
+loaded, let you draw the ellipse on `img` with [`draw_ellipse`](@ref) and save it to `elfile`.
+With `saveap=true` the aperture mask is also saved as an image to `apfile`
+(by default `ap.tif` next to `elfile`).
+
+Requires `using GLMakie`. Switches to GLMakie for drawing and back to CairoMakie (PNG) afterwards.
+"""
+function draw_or_load_ellipse end
+
+"""
+    draw_aperture(img) -> (shape, mask)
+
+Like [`draw_ellipse`](@ref), but the key `e` cycles through three aperture shapes: an ellipse
+fitted to the points, the polygon through the points, and their convex hull. Returns the
+ellipse coefficients (or the polygon vertices) and the mask of the aperture.
+
+Requires `using GLMakie`.
+"""
+function draw_aperture end
+
+"""
+    save_figs_as_gif(figs, name, fps=2)
+
+Record the figures `figs` (e.g. the results of successive iterations) as frames of the
+animation `name` (`.gif`, `.mp4`, …) with `fps` frames per second.
+
+Requires `using GLMakie`; the active Makie backend is restored afterwards.
+"""
+function save_figs_as_gif end
+
+const _GLMAKIE_FUNCTIONS = (draw_ellipse, draw_or_load_ellipse, draw_aperture, save_figs_as_gif)
+
+function _glmakie_hint(io, exc, argtypes, kwargs)
+    if exc.f in _GLMAKIE_FUNCTIONS && isempty(methods(exc.f))
+        print(io, "\n`$(nameof(exc.f))` is interactive and needs GLMakie: run `using GLMakie` first.")
     end
 end
-
-
-
-# Updated draw_aperture with an additional convex hull mode.
-function draw_aperture(img)
-    ready = false
-    displayhelp = Observable(true)
-    state = Observable(:pass)
-
-    helpmessage = """
-    Controls :
-    a to switch to "add a point" mode
-    d to switch to "delete a point" mode
-    p to switch to passive mode
-    e to toggle through ellipse, polygon, and convex hull modes
-    h to show/hide this message
-    mouse wheel or left mouse press & drag: Zoom
-    Right mouse: Pan
-    Ctrl+click: Reset zoom
-    Esc or q: Quit and save the data
-    """
-
-    rotated = rotr90(img)
-    # sim = size(img)
-    xrange, yrange = Base.axes(img)
-    fig, ax, implot = image(rotated; axis=(aspect=DataAspect(),))
-
-    # Observable mode can be :ellipse, :polygon or :hull.
-    mode = Observable(:ellipse)
-    positions = Observable(Point2f[])
-
-    current_el = lift(fit_ellipse, positions)
-    # Compute mask for user-drawn polygon.
-    current_poly = lift(positions) do pos
-        if length(pos) ≥ 3
-            return draw_filled_polygon_on_ranges(xrange, yrange, reverse.(pos); fill_value=1)
-        else
-            return zeros(Float32, size(rotated)...)
-        end
-    end
-    # Compute mask for the convex hull of the positions.
-    current_hull = lift(positions) do pos
-        if length(pos) ≥ 3
-            hull_pts = convex_hull(reverse.(pos))
-            return draw_filled_polygon_on_ranges(xrange, yrange, hull_pts; fill_value=1)
-        else
-            return zeros(Float32, size(rotated)...)
-        end
-    end
-
-    # The overlay is built depending on the selected mode.
-    overlay = lift(current_el, current_poly, current_hull, mode) do el, poly, hull, m
-
-        if m == :ellipse && any(el .!= 0)
-            mask = mask_ellipse(rotated, el)
-            return ap2mask(1 .- mask)
-        elseif m == :polygon
-            return ap2mask(1 .- poly)
-        elseif m == :hull
-            return ap2mask(1 .- hull)
-        else
-            return zeros(eltype(rotated), size(rotated)...)
-        end
-    end
-
-    image!(overlay; colormap=(:Blues, 0.4))
-
-    p = scatter!(ax, positions)
-    c = lines!(ax, map(_pos_to_elpoints, positions))
-
-    text!(
-        0.1,
-        0.9;
-        text=helpmessage,
-        space=:relative,
-        color=:white,
-        font=:bold,
-        align=(:left, :top),
-        visible=displayhelp,
-        glowwidth=1,
-        fontsize=24,
-    )
-
-    on(events(fig).mousebutton; priority=2) do event
-        if event.button == Mouse.left && event.action == Mouse.press
-            if state[] == :delete
-                plt, i = pick(fig)
-                if plt == p
-                    deleteat!(positions[], i)
-                    notify(positions)
-                    return Consume(true)
-                end
-            elseif state[] == :add
-                push!(positions[], mouseposition(ax))
-                notify(positions)
-                return Consume(true)
-            end
-        end
-        return Consume(false)
-    end
-
-    screen = display(fig)
-
-    on(events(fig).keyboardbutton) do event
-        if event.action in (Keyboard.press, Keyboard.repeat)
-            if event.key == Keyboard.q || event.key == Keyboard.escape
-                println("q/esc is pressed, the data are saved")
-                println("$(fit_ellipse(to_value(positions)))")
-                ready = true
-                close(screen)
-            elseif event.key == Keyboard.h
-                displayhelp[] = !displayhelp[]
-            elseif event.key == Keyboard.a
-                state[] = :add
-            elseif event.key == Keyboard.d
-                state[] = :delete
-            elseif event.key == Keyboard.p
-                state[] = :pass
-            elseif event.key == Keyboard.e
-                # Cycle the mode: ellipse -> polygon -> hull -> ellipse -> ...
-                mode[] = (
-                    mode[] == :ellipse ? :polygon : (mode[] == :polygon ? :hull : :ellipse)
-                )
-            end
-        end
-    end
-
-    wait(screen)
-    # Return different values based on the mode.
-    if mode[] == :ellipse
-        return to_value(current_el), rotr90(mask_ellipse(rotated, to_value(current_el)), 3)
-    elseif mode[] == :polygon
-        return reverse.(to_value(positions)), rotr90(to_value(current_poly), 3)
-    else  # mode == :hull
-        let pts = reverse.(to_value(positions))
-            hull_pts = length(pts) ≥ 3 ? convex_hull(pts) : pts
-            return hull_pts, rotr90(to_value(current_hull), 3)
-        end
-    end
-end  # function draw_aperture
 
 ####
 # Approach through a special type and Makie recipes
@@ -624,147 +404,3 @@ function transform_marker(p, img)
     # and new column = original row.
     return typeof(p)(nrows - p[2] + 1, p[1])
 end
-
-# When drawing filled polygons, we use ranges corresponding to the rotated image.
-# (Rows: 1:nrows, Columns: 1:ncols)
-
-# Refactored draw_aperture function using the improved transform_marker.
-function draw_aperture2(img)
-    ready = false
-    displayhelp = Observable(true)
-    state = Observable(:pass)
-
-    helpmessage = """
-    Controls :
-      a     to switch to "add a point" mode
-      d     to switch to "delete a point" mode
-      p     to switch to passive mode
-      e     to toggle through ellipse, polygon, and convex hull modes
-      h     to show/hide this message
-      Mouse wheel or left mouse press & drag: Zoom
-      Right mouse: Pan
-      Ctrl+click: Reset zoom
-      Esc or q: Quit and save the data
-    """
-
-    # Rotate the image once.
-    rotated = rotr90(img)
-    # Note: rotated now has size (nrows_rot, ncols_rot) and is displayed as-is.
-    fig, ax, implot = image(rotated; axis=(aspect=DataAspect(),))
-
-    # mode will be one of :ellipse, :polygon, or :hull.
-    mode = Observable(:ellipse)
-    # Positions are stored in the coordinate system for "rotated" image: (row, col)
-    positions = Observable(Point2f[])
-
-    # When adding a marker, immediately convert the raw marker from the displayed coordinate system
-    # (traditional image space) into the rotated (matrix index) space.
-    on(events(fig).mousebutton; priority=2) do event
-        if event.button == Mouse.left && event.action == Mouse.press
-            if state[] == :delete
-                plt, i = pick(fig)
-                if plt == p
-                    deleteat!(positions[], i)
-                    notify(positions)
-                    return Consume(true)
-                end
-            elseif state[] == :add
-                raw_pos = mouseposition(ax)
-                mpos = transform_marker(raw_pos, img)
-                push!(positions[], mpos)
-                notify(positions)
-                return Consume(true)
-            end
-        end
-        return Consume(false)
-    end
-
-    # Build the ellipse, polygon and convex hull masks based on the rotated image coordinates.
-    current_el = lift(fit_ellipse, positions)
-    current_poly = lift(positions) do pos
-        if length(pos) ≥ 3
-            nrows, ncols = size(rotated)
-            return draw_filled_polygon_on_ranges(1:ncols, 1:nrows, pos; fill_value=1)
-        else
-            return zeros(Float32, size(rotated)...)
-        end
-    end
-    current_hull = lift(positions) do pos
-        if length(pos) ≥ 3
-            hull_pts = convex_hull(pos)
-            nrows, ncols = size(rotated)
-            return draw_filled_polygon_on_ranges(1:ncols, 1:nrows, hull_pts; fill_value=1)
-        else
-            return zeros(Float32, size(rotated)...)
-        end
-    end
-
-    # Build overlay according to the current mode.
-    overlay = lift(current_el, current_poly, current_hull, mode) do el, poly, hull, m
-        if m == :ellipse && any(el .!= 0)
-            mask = mask_ellipse(rotated, el)
-            return ap2mask(1 .- mask)
-        elseif m == :polygon
-            return ap2mask(1 .- poly)
-        elseif m == :hull
-            return ap2mask(1 .- hull)
-        else
-            return zeros(eltype(rotated), size(rotated)...)
-        end
-    end
-
-    image!(overlay; colormap=(:Blues, 0.4))
-    p = scatter!(ax, positions)
-    c = lines!(ax, map(_pos_to_elpoints, positions))
-
-    text!(
-        0.1,
-        0.9;
-        text=helpmessage,
-        space=:relative,
-        color=:white,
-        font=:bold,
-        align=(:left, :top),
-        visible=displayhelp,
-        glowwidth=1,
-        fontsize=24,
-    )
-
-    on(events(fig).keyboardbutton) do event
-        if event.action in (Keyboard.press, Keyboard.repeat)
-            if event.key == Keyboard.q || event.key == Keyboard.escape
-                println("q/esc is pressed, the data are saved")
-                println("$(fit_ellipse(to_value(positions)))")
-                ready = true
-                close(screen)
-            elseif event.key == Keyboard.h
-                displayhelp[] = !displayhelp[]
-            elseif event.key == Keyboard.a
-                state[] = :add
-            elseif event.key == Keyboard.d
-                state[] = :delete
-            elseif event.key == Keyboard.p
-                state[] = :pass
-            elseif event.key == Keyboard.e
-                # Cycle through modes.
-                mode[] = (
-                    mode[] == :ellipse ? :polygon : (mode[] == :polygon ? :hull : :ellipse)
-                )
-            end
-        end
-    end
-
-    screen = display(fig)
-    wait(screen)
-    # Rotate the mask back to the original orientation (using rotr90 with appropriate count)
-    if mode[] == :ellipse
-        return to_value(current_el), rotr90(mask_ellipse(rotated, to_value(current_el)), 3)
-    elseif mode[] == :polygon
-        return to_value(positions), rotr90(to_value(current_poly), 3)
-    else  # mode == :hull
-        let pts = to_value(positions)
-            hull_pts = length(pts) ≥ 3 ? convex_hull(pts) : pts
-            return hull_pts, rotr90(to_value(current_hull), 3)
-        end
-    end
-end  # function draw_aperture2

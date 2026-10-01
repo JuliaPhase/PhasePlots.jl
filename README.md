@@ -4,6 +4,8 @@ Part of the [Phase.jl](https://github.com/JuliaPhase/Phase.jl) ecosystem.
 
 <!-- DOI badge: add after first Zenodo release -->
 
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://juliaphase.github.io/PhasePlots.jl/stable)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://juliaphase.github.io/PhasePlots.jl/dev)
 [![Build Status](https://github.com/JuliaPhase/PhasePlots.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/JuliaPhase/PhasePlots.jl/actions/workflows/CI.yml?query=branch%3Amain)
 
 ## Overview
@@ -12,8 +14,31 @@ Part of the [Phase.jl](https://github.com/JuliaPhase/Phase.jl) ecosystem.
 
 PhasePlots collects Makie-based plotting helpers for phase images and related data used in the Phase.jl packages: phase maps and colour themes, tables of heatmaps, drawing of ellipses and polygonal apertures, and utilities for saving figures as PNG files or GIF animations.
 
+The interactive tools (`draw_ellipse`, `draw_or_load_ellipse`) and `save_figs_as_gif` need GLMakie: run `using GLMakie` to load them.
+
+## Array orientation
+
+Makie's `heatmap(A)` puts the first array index on the horizontal axis. The plotting functions here
+(`showarray`, `showphase`, `phaseplot`, `plot_heatmaps_table`, …) reorient the array so that `x` points right and `y` up.
+Two array conventions are supported:
+
+| Array | Row 1 is | How to show it |
+|---|---|---|
+| image from a file (default, `frame=:image`) | top (`y = -row`) | `showarray(A)` — rotated clockwise (`rotr90`) |
+| sampled on a grid with ascending `y`, `A[j, i] = f(x[i], y[j])` (`frame=:domain`) | smallest `y` | `showarray(A; frame=:domain)` — transposed |
+
+For arrays sampled on a `SampledDomains.CartesianDomain2D` (or anything with `xrange` and `yrange`
+fields), pass the domain; the axes then show the physical coordinates and are labelled `x` and `y`:
+
+```julia
+dom = CartesianDomain2D(-1:0.05:1, -0.5:0.05:0.5)
+A = [x + 2y for y in dom.yrange, x in dom.xrange]
+showarray(dom, A)                              # x to the right, y up, real coordinates
+showarray(dom, A; axis=(xlabel="x [mm]",))     # override a label
+```
+
 ## Funding
 
-This work has received funding from the Chips Joint Undertaking (JU) under grant agreement No 101111948 (14AMI). The JU receives support from the European Union's Horizon Europe research and innovation programme. The project is supported by the Chips Joint Undertaking and its members including the top-up funding by RVO (The Netherlands Enterprise Agency).
+This work is part of the 14AMI project (grant agreement No 101111948). The project is supported by the Chips Joint Undertaking and its members including the top-up funding by RVO (The Netherlands Enterprise Agency).
 
 <img src="docs/src/assets/funding/Chips-JU.png" alt="Chips Joint Undertaking, co-funded by the European Union" height="60">
